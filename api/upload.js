@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     }
 
     const OWNER = "jonsigur";
-    const REPO = "leringshub";
+    const REPO = "leringhub";
     const BRANCH = "main";
 
     // Frontend sender nå JSON
