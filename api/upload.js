@@ -26,12 +26,23 @@ export default async function handler(req, res) {
     }
 
     const OWNER = "jonsigur";
-    const REPO = "leringhub";
+    const REPO = "lerlinghub";
     const BRANCH = "main";
 
-    // Frontend sender nå JSON
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
-    const { title, type = "", desc = "", files = [] } = body;
+    // Støtter både JSON-body og evt. payload-felt
+    let body = req.body ?? {};
+    if (typeof body === "string") {
+      body = JSON.parse(body);
+    }
+    if (body && typeof body.payload === "string") {
+      try {
+        body = JSON.parse(body.payload);
+      } catch {
+        // behold body som den er hvis payload ikke er gyldig JSON
+      }
+    }
+
+    const { title, type = "", desc = "", files = [] } = body || {};
 
     if (!title) {
       return res.status(400).json({ error: "Missing title" });
@@ -47,12 +58,15 @@ export default async function handler(req, res) {
       "-" +
       now.getTime();
 
-    const folder = `uploads/${yyyy}-${mm}-${dd}/${slug}`;
+    // Viktig: docs/uploads siden nettsiden ligger i docs
+    const folder = `docs/uploads/${yyyy}-${mm}-${dd}/${slug}`;
 
-    async function uploadFile(path, content, message) {
-      const api = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(path)}`;
+    async function uploadFile(path, contentBase64, message) {
+      const api = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(
+        path
+      )}`;
 
-      const r = await fetch(api, {
+      const ghRes = await fetch(api, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${TOKEN}`,
@@ -62,23 +76,27 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           message,
-          content,
+          content: contentBase64,
           branch: BRANCH,
         }),
       });
 
-      if (!r.ok) {
-        const t = await r.text();
-        throw new Error(`GitHub error: ${r.status} ${t}`);
+      if (!ghRes.ok) {
+        const t = await ghRes.text();
+        throw new Error(`GitHub error: ${ghRes.status} ${t}`);
       }
-      return r.json();
+
+      return ghRes.json();
     }
 
     const metaFiles = [];
+
     for (const f of files) {
       if (!f?.name || !f?.base64) continue;
+
       const safeName = String(f.name).replace(/[\\/]/g, "_");
       const filePath = `${folder}/${safeName}`;
+
       await uploadFile(filePath, f.base64, `Upload image ${safeName} for ${title}`);
       metaFiles.push({ name: safeName, path: filePath });
     }
@@ -91,15 +109,29 @@ export default async function handler(req, res) {
       files: metaFiles,
     };
 
-    const metaContent = Buffer.from(JSON.stringify(metaJSON, null, 2), "utf8").toString("base64");
-    await uploadFile(`${folder}/meta.json`, metaContent, `Create meta.json for ${title}`);
+    const metaContent = Buffer.from(
+      JSON.stringify(metaJSON, null, 2),
+      "utf8"
+    ).toString("base64");
+
+    await uploadFile(
+      `${folder}/meta.json`,
+      metaContent,
+      `Create meta.json for ${title}`
+    );
 
     const md = `# ${title}\n\n**Type:** ${type}\n\n${desc}\n`;
     const md64 = Buffer.from(md, "utf8").toString("base64");
-    await uploadFile(`${folder}/README.md`, md64, `Create README for ${title}`);
+
+    await uploadFile(
+      `${folder}/README.md`,
+      md64,
+      `Create README for ${title}`
+    );
 
     return res.status(200).json({ ok: true, folder, meta: metaJSON });
   } catch (err) {
+    console.error(err);
     return res.status(500).json({ error: String(err?.message || err) });
   }
 }
