@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
     const OWNER = "jonsigur";
     const REPO = "leringhub";
-    const BRANCH = "docs";
+    const BRANCH = "main";
 
     // Frontend sender nå JSON
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
