@@ -25,7 +25,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const OWNER = "AdvaniaPayment";
+    const OWNER = "jonsigur";
     const REPO = "leringshub";
     const BRANCH = "main";
 
